@@ -1098,7 +1098,7 @@ extern "C" {
               pop[t][HIVN][g][a] += nmig_a;
 
               double hmig_a;
-              if (netmigrhiv_flag[t] == 1) { // HIV+ net migrants entered into AIM
+              if (netmigrhiv_flag[t]) { // HIV+ net migrants entered into AIM
                 double hmig_ha = (ha == 0 || ha == 1) ? netmigrhiv[t][g][0] * hAG_SPAN[ha] / 5.0 : netmigrhiv[t][g][ha-1];
                 hmig_a = hmig_ha / hAG_SPAN[ha];
               } else {                       // HIV+ net migrants not entered into AIM
@@ -1122,14 +1122,29 @@ extern "C" {
               testnegpop[t][HIVP][g][ha] *= 1+migrate_ha;
             }
 
+            // If HIV+ net migrants were entered manually, we assume ART coverage is the
+            // same as in resident PLHIV and that all HIV+ migrants not on ART have been
+            // diagnosed.
+            // 
+            // If HIV+ net migrants were not entered manually, we assume ART coverage and
+            // % diagnosed among HIV+ migrants is the same as in resident PLHIV.
+            if (t >= t_hts_start) {
+              if (netmigrhiv_flag[t]) {
+                for (int hm = 0; hm < hDS; hm++)
+                  diagnpop[t][g][ha][hm] += migrate_ha * hivpop[t][g][ha][hm];
+              } else {
+                for (int hm = 0; hm < hDS; hm++)
+                  diagnpop[t][g][ha][hm] *= 1+migrate_ha;
+              }
+            }
+
             for(int hm = 0; hm < hDS; hm++){
               hivpop[t][g][ha][hm] *= 1+migrate_ha;
-              if(t >= t_hts_start)
-                diagnpop[t][g][ha][hm] *= 1+migrate_ha;
               if(t >= t_ART_start)
                 for(int hu = 0; hu < hTS; hu++)
                   artpop[t][g][ha][hm][hu] *= 1+migrate_ha;
             } // loop over hm
+
           } // loop over ha
         } // loop over g
       } // if (projection_period_int == PROJPERIOD_CALENDAR)
