@@ -61,7 +61,7 @@ create_fp <- function(projp,
 
   ## Replace 6,14 with 6.14 for files saved with french locale
   projp$spectrum_version <- sub("^([0-9]+),(.*)$", "\\1.\\2", projp$spectrum_version)
-  
+
   if (!grepl("^[4-6]\\.[0-9]", projp$spectrum_version)) {
     stop(paste0("Spectrum version not recognized: ", projp$spectrum_version))
   }
@@ -72,8 +72,8 @@ create_fp <- function(projp,
     stopifnot(projection_period %in% c("calendar", "midyear"))
     fp$projection_period <- projection_period
   }
-  
-  
+
+
   ## ######################## ##
   ##  Demographic parameters  ##
   ## ######################## ##
@@ -92,19 +92,19 @@ create_fp <- function(projp,
   netmigr.adj <- demp$netmigr
 
   if (fp$projection_period == "midyear") {
-    
+
     ## Spectrum mid-year projection (v5.19 and earlier) adjusts net-migration to occur
     ## half in current age group and half in next age group
-    
+
     netmigr.adj[-1,,] <- (demp$netmigr[-1,,] + demp$netmigr[-81,,])/2
     netmigr.adj[1,,] <- demp$netmigr[1,,]/2
     netmigr.adj[81,,] <- netmigr.adj[81,,] + demp$netmigr[81,,]/2
   }
-    
+
   fp$netmigr <- netmigr.adj[(AGE_START+1):81,,as.character(proj_start:proj_end)]
 
   fp$entrantpop <- projp$totpop[AGE_START,,as.character(proj_start:proj_end)]
-  
+
   ## set population adjustment
   fp$popadjust <- popadjust
 
@@ -117,8 +117,8 @@ create_fp <- function(projp,
                                2:3, fastmatch::ctapply, fp$ss$ag.idx, sum)
   hivp_ha <- apply(fp$target_hivp_pop, 2:3, fastmatch::ctapply, fp$ss$ag.idx, sum)
   fp$target_hivpop_ha <- hivp_ha - fp$target_artpop_ha
-  
-  
+
+
   ## ###################### ##
   ##  HIV model parameters  ##
   ## ###################### ##
@@ -142,6 +142,21 @@ create_fp <- function(projp,
   fp$frr_art <- array(1.0, c(hTS, hDS, length(h.fert.idx), PROJ_YEARS))
   fp$frr_art[1,,,] <- fp$frr_cd4 # 0-6 months
   fp$frr_art[2:3, , , ] <- sweep(fp$frr_art[2:3, , , ], 3, projp$frr_art6mos[fert_rat.h.ag] * projp$frr_scalar, "*") # 6-12mos, >1 years
+
+  # RG: I think this could be done more elegantly to pre-disaggregate AIM's
+  # inputs by EPP-ASM's age groups, sot that the aggregation does not need to be
+  # done in the EPP-ASM code.
+  fp$netmigrhiv <- array(0, c(hAG, NG, PROJ_YEARS))
+  fp$netmigrhiv[1,,] <- projp$netmigrhiv[4,,]
+  fp$netmigrhiv[2:(hAG-2),,] <- projp$netmigrhiv[5:10,,]
+  fp$netmigrhiv[hAG-1,,] <- colSums(projp$netmigrhiv[11:AG,,])
+
+  # TRUE in any year where non-zero net HIV+ migration has been entered, FALSE
+  # otherwise. We need to check this here (instead of in the eppasm
+  # calculations) for consistency with AIM - AIM will turn off net migration for
+  # all ages in years where HIV+ net migrants age 0-14 were entered, but eppasm
+  # will never see the inputs for ages 0-14.
+  fp$netmigrhiv_flag = as.integer(apply(abs(projp$netmigrhiv), 3, sum) > 0)
 
   ## ART eligibility and numbers on treatment
 
